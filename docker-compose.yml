@@ -1,0 +1,223 @@
+version: '3.7'
+
+services:
+
+  minio_dc1:
+    image: minio/minio
+    command: server /data
+    env_file: 
+      - minio.env
+    volumes:
+      - type: volume
+        source: minio_data_dc1
+        target: /data
+    ports:
+      - "9001:9000"
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      placement:
+        constraints:
+          - node.labels.datacenter == SAN
+
+  minio_dc2:
+    image: minio/minio
+    command: server /data
+    env_file: 
+      - minio.env
+    volumes:
+      - type: volume
+        source: minio_data_dc2
+        target: /data
+    ports:
+      - "9002:9000"
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      placement:
+        constraints:
+          - node.labels.datacenter == LAS
+
+  minio_dc3:
+    image: minio/minio
+    command: server /data
+    env_file: 
+      - minio.env
+    volumes:
+      - type: volume
+        source: minio_data_dc3
+        target: /data
+    ports:
+      - "9003:9000"
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      placement:
+        constraints:
+          - node.labels.datacenter == POW
+
+  #SHARD1-DATACENTER1-REPLICASET1-3INSTANCES
+
+  mongo_dc1_inst1:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == SAN
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "2"]
+
+
+  mongo_dc1_inst2:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == SAN
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "1"]
+
+  mongo_dc1_inst3:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == SAN
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "1"]
+
+  #SHARD1-DATACENTER2-REPLICASET1-3INSTANCES
+
+  mongo_dc2_inst1:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == LAS
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "2"]
+
+  mongo_dc2_inst2:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == LAS
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "1"]
+
+  mongo_dc2_inst3:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == LAS
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "1"]
+
+  #SHARD1-DATACENTER3-REPLICASET1-3INSTANCES
+
+  mongo_dc3_inst1:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == POW
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "2"]
+  
+  mongo_dc3_inst2:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == POW
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "1"]
+
+  mongo_dc3_inst3:
+    image: mongo
+    env_file: 
+      - mongo.env
+    networks:
+      - swarm_mongodb_minio_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.datacenter == POW
+    command: ["--replSet", "rs0","--port", "27017", "--priority", "1"]
+
+  
+  #Mongoose router
+  mongoose_router:
+    image: mongo
+    networks:
+      - swarm_mongodb_minio_network
+    command: ["mongos", "--configdb", "rs0/mongo_dc1_inst1:27017,mongo_dc2_inst1:27017,mongo_dc3_inst1:27017"]
+
+
+  #Backup service
+
+  backup-service:
+    image: bash:latest
+    volumes:
+      - type: bind
+        source: ./backup.sh
+        target: /backup.sh
+      - type: bind
+        source: ./cron_schedule
+        target: /etc/cron.d/backup-cron
+    deploy:
+      placement:
+        constraints:
+          - node.labels.datacenter == SAN
+    command: sh -c "cron -f && tail -f /dev/null"
+
+networks:
+  swarm_mongodb_minio_network:
+    driver: overlay
+
+volumes:
+  minio_data_dc1:
+    driver: local
+  minio_data_dc2:
+    driver: local
+  minio_data_dc3:
+    driver: local
+
+    
+
+  
